@@ -37,26 +37,25 @@ def main():
         client.sendall(size.to_bytes(4, 'big'))
         client.sendall(data)
 
-        # Receber bloco de A + B
+        # Receber bloco
         size_bytes = client.recv(4)
         if not size_bytes:
-            print("Erro: não recebeu tamanho do bloco.")
+            print("Erro: servidor não enviou bloco.")
             return
         size = int.from_bytes(size_bytes, 'big')
         payload = client.recv(size)
         A_block, B = deserialize_data(payload)
         print("Bloco recebido para cálculo:\n", A_block)
 
-        # Calcular localmente
+        # Calcular
         result = multiply_block(A_block, B)
-        print("Resultado calculado:\n", result)
 
         # Enviar resultado
         res_data = serialize_data(result)
         size = len(res_data)
         client.sendall(size.to_bytes(4, 'big'))
         client.sendall(res_data)
-        print("✅ Resultado enviado ao servidor.")
+        print("✅ Resultado enviado.")
 
     except Exception as e:
         print(f"Erro no cliente: {e}")

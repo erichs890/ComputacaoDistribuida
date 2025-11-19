@@ -1,6 +1,7 @@
 import socket
 import threading
 import numpy as np
+import time
 from utils import serialize_data, deserialize_data, multiply_block
 
 def input_matrix(name):
@@ -29,26 +30,12 @@ def recv_all(conn, size):
     while len(data) < size:
         packet = conn.recv(size - len(data))
         if not packet:
-            raise ConnectionError("Conexão encerrada inesperadamente.")
+            raise ConnectionError("Conexão encerrada.")
         data += packet
     return data
 
-def handle_client(conn, results, idx):
-    try:
-        # Receber tamanho do resultado
-        size_bytes = recv_all(conn, 4)
-        size = int.from_bytes(size_bytes, 'big')
-        # Receber resultado
-        res_data = recv_all(conn, size)
-        results[idx] = deserialize_data(res_data)
-        print(f"[Servidor] Resultado do cliente {idx} recebido com sucesso.")
-    except Exception as e:
-        print(f"[Erro no cliente {idx}]: {e}")
-        results[idx] = None
-    finally:
-        conn.close()
-
 def main():
+    # 1. Receber A no servidor
     A = input_matrix("A")
     print("Matriz A:\n", A)
 
@@ -62,58 +49,99 @@ def main():
     conn, addr = server.accept()
     print(f"Cliente {addr} conectado.")
 
-    try:
-        # Receber B do cliente
-        size_bytes = conn.recv(4)
-        if not size_bytes:
-            raise ConnectionError("Falha ao receber tamanho de B.")
-        size = int.from_bytes(size_bytes, 'big')
-        data = recv_all(conn, size)
-        B = deserialize_data(data)
-        print("Matriz B recebida:\n", B)
+    # 2. Receber B do cliente
+    size_bytes = conn.recv(4)
+    if not size_bytes:
+        print("Erro: cliente não enviou matriz B.")
+        return
+    size = int.from_bytes(size_bytes, 'big')
+    data = recv_all(conn, size)
+    B = deserialize_data(data)
+    print("Matriz B recebida:\n", B)
 
-        if A.shape[1] != B.shape[0]:
-            print("Erro: matrizes incompatíveis para multiplicação!")
-            conn.close()
-            server.close()
-            return
-
-        # Dividir A em 2 blocos
-        half = len(A) // 2
-        if half == 0:
-            half = 1  # Caso A tenha só 1 linha
-        A_server = A[:half]
-        A_client = A[half:]
-
-        results = [None, None]
-
-        # Servidor calcula sua parte
-        results[0] = multiply_block(A_server, B)
-        print("[Servidor] Parte local calculada.")
-
-        # Enviar bloco para cliente
-        payload = serialize_data((A_client, B))
-        size = len(payload)
-        conn.sendall(size.to_bytes(4, 'big'))
-        conn.sendall(payload)
-
-        # Receber resultado do cliente em thread
-        client_thread = threading.Thread(target=handle_client, args=(conn, results, 1))
-        client_thread.start()
-        client_thread.join(timeout=10)  # Timeout de segurança
-
-        if results[1] is None:
-            print("Erro: cliente não retornou resultado.")
-            return
-
-        # Montar resultado final
-        C = np.vstack([results[0], results[1]])
-        print("\n✅ Resultado final C = A × B:\n", C)
-
-    except Exception as e:
-        print(f"Erro no servidor: {e}")
-    finally:
+    if A.shape[1] != B.shape[0]:
+        print("Erro: matrizes incompatíveis!")
+        conn.close()
         server.close()
+        return
+
+    # -------------------------------------------------
+    # 3. Cálculo SERIAL (tudo local, para comparação)
+    # -------------------------------------------------
+    print("\n[Modo SERIAL] Calculando localmente...")
+    start_serial = time.time()
+    C_serial = np.dot(A, B)
+    end_serial = time.time()
+    time_serial = end_serial - start_serial
+    print(f"✅ Serial concluído em {time_serial:.4f} segundos.")
+
+    # -------------------------------------------------
+    # 4. Cálculo DISTRIBUÍDO
+    # -------------------------------------------------
+    print("\n[Modo DISTRIBUÍDO] Iniciando cálculo distribuído...")
+
+    # Dividir A em 2 partes
+    half = len(A) // 2
+    if half == 0:
+        half = 1
+    A_server = A[:half]
+    A_client = A[half:]
+
+    results = [None, None]
+
+    # Servidor calcula sua parte
+    start_dist = time.time()
+    results[0] = multiply_block(A_server, B)
+
+    # Enviar bloco para cliente
+    payload = serialize_data((A_client, B))
+    size = len(payload)
+    conn.sendall(size.to_bytes(4, 'big'))
+    conn.sendall(payload)
+
+    # Esperar resultado do cliente
+    def handle_client_result():
+        try:
+            size_bytes = recv_all(conn, 4)
+            size = int.from_bytes(size_bytes, 'big')
+            res_data = recv_all(conn, size)
+            results[1] = deserialize_data(res_data)
+        except Exception as e:
+            print(f"[Erro] Cliente falhou: {e}")
+
+    client_thread = threading.Thread(target=handle_client_result)
+    client_thread.start()
+    client_thread.join(timeout=10)
+
+    # Finalizar tempo
+    end_dist = time.time()
+    time_dist = end_dist - start_dist
+
+    if results[1] is None:
+        print("Erro: cliente não retornou resultado.")
+        return
+
+    C_dist = np.vstack([results[0], results[1]])
+
+    # -------------------------------------------------
+    # 5. Comparação
+    # -------------------------------------------------
+    print("\n" + "="*50)
+    print("RESULTADOS:")
+    print("="*50)
+    print(f"Tempo SERIAL:     {time_serial} segundos")
+    print(f"Tempo DISTRIBUÍDO: {time_dist} segundos")
+    print(f"Aceleração:       {time_serial / time_dist}x" if time_dist > 0 else "Infinito")
+
+    # Verificar se os resultados são iguais (dentro de uma tolerância)
+    if np.allclose(C_serial, C_dist):
+        print("✅ Resultados idênticos!")
+    else:
+        print("❌ Resultados diferentes!")
+
+    print("\nMatriz Resultante C = A × B:\n", C_serial)
+
+    server.close()
 
 if __name__ == "__main__":
     main()

@@ -2,7 +2,6 @@ import pickle
 import numpy as np
 
 def multiply_block(A_block, B):
-    """Multiplica um bloco de A com a matriz B."""
     return np.dot(A_block, B)
 
 def serialize_data(data):
