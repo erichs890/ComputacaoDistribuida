@@ -1,6 +1,7 @@
 import socket
 import numpy as np
-from utils import serialize_data, deserialize_data, multiply_block
+import time
+from utils import serialize_data, deserialize_data
 
 def input_matrix(name):
     print(f"Insira a matriz {name} (linha por linha, separada por espaços):")
@@ -20,47 +21,107 @@ def input_matrix(name):
                 print("Entrada inválida. Use números separados por espaço.")
     return np.array(matrix)
 
+def recv_all(conn, size):
+    data = b""
+    while len(data) < size:
+        packet = conn.recv(size - len(data))
+        if not packet:
+            raise ConnectionError("Conexão encerrada.")
+        data += packet
+    return data
+
 def main():
+    A = input_matrix("A")
     B = input_matrix("B")
+    print("\nMatriz A:\n", A)
     print("Matriz B:\n", B)
 
-    HOST = input("IP do servidor: ").strip()
-    PORT = 65432
+    if A.shape[1] != B.shape[0]:
+        print("Erro: matrizes incompatíveis!")
+        return
 
-    client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
-        client.connect((HOST, PORT))
+    # -------------------------------------------------
+    # Cálculo SERIAL
+    # -------------------------------------------------
+    print("\n[Modo SERIAL] Calculando localmente...")
+    start_serial = time.time()
+    C_serial = np.dot(A, B)
+    end_serial = time.time()
+    time_serial = end_serial - start_serial
+    print(f"✅ Serial concluído em {time_serial:.4f} segundos.")
 
-        # Enviar B
-        data = serialize_data(B)
-        size = len(data)
-        client.sendall(size.to_bytes(4, 'big'))
-        client.sendall(data)
+    # -------------------------------------------------
+    # Cálculo DISTRIBUÍDO
+    # -------------------------------------------------
+    print("\n[Modo DISTRIBUÍDO] Iniciando cálculo distribuído...")
 
-        # Receber bloco
-        size_bytes = client.recv(4)
-        if not size_bytes:
-            print("Erro: servidor não enviou bloco.")
-            return
-        size = int.from_bytes(size_bytes, 'big')
-        payload = client.recv(size)
-        A_block, B = deserialize_data(payload)
-        print("Bloco recebido para cálculo:\n", A_block)
+    # Dividir A em 2 blocos
+    half = len(A) // 2
+    if half == 0:
+        half = 1
+    A1 = A[:half]
+    A2 = A[half:]
 
-        # Calcular
-        result = multiply_block(A_block, B)
+    # Conectar a servidores
+    conn1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    conn1.connect(('26.185.181.49', 65431))
 
-        # Enviar resultado
-        res_data = serialize_data(result)
-        size = len(res_data)
-        client.sendall(size.to_bytes(4, 'big'))
-        client.sendall(res_data)
-        print("✅ Resultado enviado.")
+    conn2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    conn2.connect(('26.185.181.49', 65432))
 
-    except Exception as e:
-        print(f"Erro no cliente: {e}")
-    finally:
-        client.close()
+    # Enviar blocos para cada servidor
+    start_dist = time.time()
+
+    # Enviar A1 e B para servidor1
+    payload1 = serialize_data((A1, B))
+    size1 = len(payload1)
+    conn1.sendall(size1.to_bytes(4, 'big'))
+    conn1.sendall(payload1)
+
+    # Enviar A2 e B para servidor2
+    payload2 = serialize_data((A2, B))
+    size2 = len(payload2)
+    conn2.sendall(size2.to_bytes(4, 'big'))
+    conn2.sendall(payload2)
+
+    # Receber resultados
+    size_bytes1 = recv_all(conn1, 4)
+    size1 = int.from_bytes(size_bytes1, 'big')
+    res1 = recv_all(conn1, size1)
+    result1 = deserialize_data(res1)
+
+    size_bytes2 = recv_all(conn2, 4)
+    size2 = int.from_bytes(size_bytes2, 'big')
+    res2 = recv_all(conn2, size2)
+    result2 = deserialize_data(res2)
+
+    # Montar resultado final
+    C_dist = np.vstack([result1, result2])
+    end_dist = time.time()
+    time_dist = end_dist - start_dist
+
+    print(f"✅ Distribuído concluído em {time_dist:.4f} segundos.")
+
+    # Comparar resultados
+    print("\n" + "="*50)
+    print("RESULTADOS:")
+    print("="*50)
+    print(f"Tempo SERIAL:     {time_serial:.4f} segundos")
+    print(f"Tempo DISTRIBUÍDO: {time_dist:.4f} segundos")
+    if time_dist > 0:
+        print(f"Aceleração:       {time_serial / time_dist:.2f}x")
+    else:
+        print("Aceleração:       Infinito")
+
+    if np.allclose(C_serial, C_dist):
+        print("✅ Resultados idênticos!")
+    else:
+        print("❌ Resultados diferentes!")
+
+    print("\nMatriz Resultante C = A × B:\n", C_serial)
+
+    conn1.close()
+    conn2.close()
 
 if __name__ == "__main__":
     main()
