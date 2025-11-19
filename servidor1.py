@@ -1,18 +1,18 @@
 import socket
-from utils import *
+from utils import serialize_data, deserialize_data, multiply_block
 
-
-HOST = '0.0.0.0'  
+HOST = '0.0.0.0'  # Aceita conexões de qualquer IP
 PORT = 65431
 
 def main():
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind((HOST, PORT))
     server.listen(1)
-    print(f"Servidor 1 ouvindo em {HOST}:{PORT}")
+    print(f"Servidor 1 ouvindo em 0.0.0.0:{PORT}")
 
     conn, addr = server.accept()
-    print(f"Conectado a {addr}")
+    print(f"Conectado de {addr}")
 
     # Receber dados
     size_bytes = conn.recv(4)
