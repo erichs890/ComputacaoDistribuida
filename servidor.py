@@ -1,7 +1,7 @@
 import socket
 import threading
 import numpy as np
-from utils import serialize_data, deserialize_data
+from utils import serialize_data, deserialize_data, multiply_block
 
 def input_matrix(name):
     print(f"Insira a matriz {name} (linha por linha, separada por espaços):")
@@ -21,7 +21,7 @@ def input_matrix(name):
                 print("Entrada inválida. Use números separados por espaço.")
     return np.array(matrix)
 
-HOST = '0.0.0.0'  # Aceita conexões de qualquer IP
+HOST = '0.0.0.0'
 PORT = 65432
 
 def recv_all(conn, size):
@@ -29,72 +29,91 @@ def recv_all(conn, size):
     while len(data) < size:
         packet = conn.recv(size - len(data))
         if not packet:
-            raise ConnectionError("Conexão encerrada pelo cliente.")
+            raise ConnectionError("Conexão encerrada inesperadamente.")
         data += packet
     return data
 
-def handle_client(conn, idx, results, A_blocks, B):
-    data = serialize_data((A_blocks[idx], B))
-    size = len(data)
-    conn.sendall(size.to_bytes(4, 'big'))
-    conn.sendall(data)
-
-    size_data = conn.recv(4)
-    if not size_data:
+def handle_client(conn, results, idx):
+    try:
+        # Receber tamanho do resultado
+        size_bytes = recv_all(conn, 4)
+        size = int.from_bytes(size_bytes, 'big')
+        # Receber resultado
+        res_data = recv_all(conn, size)
+        results[idx] = deserialize_data(res_data)
+        print(f"[Servidor] Resultado do cliente {idx} recebido com sucesso.")
+    except Exception as e:
+        print(f"[Erro no cliente {idx}]: {e}")
+        results[idx] = None
+    finally:
         conn.close()
-        return
-    size = int.from_bytes(size_data, 'big')
-    response = recv_all(conn, size)
-    result_block = deserialize_data(response)
-    results[idx] = result_block
-
-    conn.close()
 
 def main():
     A = input_matrix("A")
     print("Matriz A:\n", A)
 
-    num_clients = 1  # Vamos usar 1 cliente
-    rows_per_block = len(A) // num_clients
-    A_blocks = [A[i:i + rows_per_block] for i in range(0, len(A), rows_per_block)]
+    print("Aguardando conexão do cliente para receber matriz B...")
 
-    if len(A_blocks) > num_clients:
-        A_blocks[-2] = np.vstack([A_blocks[-2], A_blocks[-1]])
-        A_blocks = A_blocks[:-1]
-
-    results = [None] * len(A_blocks)
-
-    print("Aguardando conexão do cliente...")
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind((HOST, PORT))
-    server.listen(num_clients)
+    server.listen(1)
 
-    # Recebe a matriz B do cliente
     conn, addr = server.accept()
     print(f"Cliente {addr} conectado.")
 
-    size_data = conn.recv(4)
-    size = int.from_bytes(size_data, 'big')
-    data = conn.recv(size)
-    B = deserialize_data(data)
-    print("Matriz B recebida do cliente:\n", B)
+    try:
+        # Receber B do cliente
+        size_bytes = conn.recv(4)
+        if not size_bytes:
+            raise ConnectionError("Falha ao receber tamanho de B.")
+        size = int.from_bytes(size_bytes, 'big')
+        data = recv_all(conn, size)
+        B = deserialize_data(data)
+        print("Matriz B recebida:\n", B)
 
-    # Verifica compatibilidade
-    if A.shape[1] != B.shape[0]:
-        print("Erro: A e B não são compatíveis para multiplicação.")
-        conn.close()
+        if A.shape[1] != B.shape[0]:
+            print("Erro: matrizes incompatíveis para multiplicação!")
+            conn.close()
+            server.close()
+            return
+
+        # Dividir A em 2 blocos
+        half = len(A) // 2
+        if half == 0:
+            half = 1  # Caso A tenha só 1 linha
+        A_server = A[:half]
+        A_client = A[half:]
+
+        results = [None, None]
+
+        # Servidor calcula sua parte
+        results[0] = multiply_block(A_server, B)
+        print("[Servidor] Parte local calculada.")
+
+        # Enviar bloco para cliente
+        payload = serialize_data((A_client, B))
+        size = len(payload)
+        conn.sendall(size.to_bytes(4, 'big'))
+        conn.sendall(payload)
+
+        # Receber resultado do cliente em thread
+        client_thread = threading.Thread(target=handle_client, args=(conn, results, 1))
+        client_thread.start()
+        client_thread.join(timeout=10)  # Timeout de segurança
+
+        if results[1] is None:
+            print("Erro: cliente não retornou resultado.")
+            return
+
+        # Montar resultado final
+        C = np.vstack([results[0], results[1]])
+        print("\n✅ Resultado final C = A × B:\n", C)
+
+    except Exception as e:
+        print(f"Erro no servidor: {e}")
+    finally:
         server.close()
-        return
-
-    # Envia blocos para processamento
-    t = threading.Thread(target=handle_client, args=(conn, 0, results, A_blocks, B))
-    t.start()
-    t.join()
-
-    server.close()
-
-    C = np.vstack(results)
-    print("Matriz resultante C = A * B:\n", C)
 
 if __name__ == "__main__":
     main()

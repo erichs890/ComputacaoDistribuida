@@ -24,35 +24,44 @@ def main():
     B = input_matrix("B")
     print("Matriz B:\n", B)
 
-    HOST = input("Digite o IP do servidor: ").strip()
+    HOST = input("IP do servidor: ").strip()
     PORT = 65432
 
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client.connect((HOST, PORT))
+    try:
+        client.connect((HOST, PORT))
 
-    # Envia B para o servidor
-    data = serialize_data(B)
-    size = len(data)
-    client.sendall(size.to_bytes(4, 'big'))
-    client.sendall(data)
+        # Enviar B
+        data = serialize_data(B)
+        size = len(data)
+        client.sendall(size.to_bytes(4, 'big'))
+        client.sendall(data)
 
-    # Recebe bloco A e faz multiplicação
-    size_data = client.recv(4)
-    size = int.from_bytes(size_data, 'big')
-    data = client.recv(size)
-    A_block, B = deserialize_data(data)
+        # Receber bloco de A + B
+        size_bytes = client.recv(4)
+        if not size_bytes:
+            print("Erro: não recebeu tamanho do bloco.")
+            return
+        size = int.from_bytes(size_bytes, 'big')
+        payload = client.recv(size)
+        A_block, B = deserialize_data(payload)
+        print("Bloco recebido para cálculo:\n", A_block)
 
-    print(f"Cliente recebeu bloco A:\n{A_block}")
+        # Calcular localmente
+        result = multiply_block(A_block, B)
+        print("Resultado calculado:\n", result)
 
-    result = multiply_block(A_block, B)
+        # Enviar resultado
+        res_data = serialize_data(result)
+        size = len(res_data)
+        client.sendall(size.to_bytes(4, 'big'))
+        client.sendall(res_data)
+        print("✅ Resultado enviado ao servidor.")
 
-    # Envia resultado
-    response = serialize_data(result)
-    size = len(response)
-    client.sendall(size.to_bytes(4, 'big'))
-    client.sendall(response)
-
-    client.close()
+    except Exception as e:
+        print(f"Erro no cliente: {e}")
+    finally:
+        client.close()
 
 if __name__ == "__main__":
     main()
