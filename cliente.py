@@ -64,10 +64,10 @@ def main():
 
     # Conectar a servidores
     conn1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    conn1.connect(('26.185.181.49', 65431))
+    conn1.connect(('0.0.0.0', 65431)) #Por ip do servidor 1
 
     conn2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    conn2.connect(('26.185.181.49', 65432))
+    conn2.connect(('0.0.0.0', 65432)) #Por ip do servidor 2
 
     # Enviar blocos para cada servidor
     start_dist = time.time()
