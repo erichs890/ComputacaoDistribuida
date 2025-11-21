@@ -1,5 +1,5 @@
 import socket
-from utils import serialize_data, deserialize_data, multiply_block
+from utils import *
 
 HOST = '0.0.0.0'  # Aceita conexões de qualquer IP
 PORT = 65431
