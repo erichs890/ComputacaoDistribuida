@@ -53,6 +53,11 @@ def main():
     # -------------------------------------------------
     # Cálculo DISTRIBUÍDO
     # -------------------------------------------------
+    
+    ip1 = input("Digite o ip do servidor 1 (ex: 192.10.0.21)\n")
+    ip2 = input("Digite o ip do servidor 2 (ex: 192.10.0.21)\n")
+    
+    
     print("\n[Modo DISTRIBUÍDO] Iniciando cálculo distribuído...")
 
     # Dividir A em 2 blocos
@@ -64,10 +69,10 @@ def main():
 
     # Conectar a servidores
     conn1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    conn1.connect(('0.0.0.0', 65431)) #Por ip do servidor 1
+    conn1.connect((ip1, 65431)) #Por ip do servidor 1
 
     conn2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    conn2.connect(('0.0.0.0', 65432)) #Por ip do servidor 2
+    conn2.connect((ip2, 65432)) #Por ip do servidor 2
 
     # Enviar blocos para cada servidor
     start_dist = time.time()
