@@ -98,11 +98,11 @@ def main():
         end_dist = time.time()
         time_dist = end_dist - start_dist
 
-        print(f"✅ Distribuído concluído em {time_dist:.4f} segundos.")
+        print(f" Distribuído concluído em {time_dist:.4f} segundos.")
 
         # Verificar igualdade
         if not np.allclose(C_serial, C_dist):
-            print("❌ Resultados diferentes!")
+            print(" Resultados diferentes!")
             return
 
         # -------------------------------------------------
@@ -132,7 +132,7 @@ def main():
         print(f"Tempo SERIAL:     {time_serial:.4f} s")
         print(f"Tempo DISTRIBUÍDO: {time_dist:.4f} s")
         print(f"Aceleração:       {speedup:.2f}x")
-        print("✅ Resultados idênticos!")
+        print(" Resultados idênticos!")
         print("\nMatriz Resultante C = A × B:\n", C_serial)
 
     except Exception as e:
