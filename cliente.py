@@ -10,7 +10,6 @@ def input_matrix(name):
     rows = int(input(f"Quantas linhas tem a matriz {name}? "))
     cols = int(input(f"Quantas colunas tem a matriz {name}? "))
     print(f"Gerando matriz {name} aleatória de tamanho {rows}x{cols}...")
-    # Gera matriz com valores inteiros entre 0 e 9 (você pode mudar o intervalo)
     matrix = np.random.randint(-100, 100, size=(rows, cols)).astype(float)
     return matrix
 
@@ -41,7 +40,7 @@ def main():
     C_serial = np.dot(A, B)
     end_serial = time.time()
     time_serial = end_serial - start_serial
-    print(f"✅ Serial concluído em {time_serial:.4f} segundos.")
+    print(f"Serial concluído em {time_serial:.4f} segundos.")
 
     # -------------------------------------------------
     # Cálculo DISTRIBUÍDO
@@ -131,7 +130,7 @@ def main():
         print("="*50)
         print(f"Tempo SERIAL:     {time_serial:.4f} s")
         print(f"Tempo DISTRIBUÍDO: {time_dist:.4f} s")
-        print(f"Aceleração:       {speedup:.2f}x")
+        print(f"Speedup:       {speedup:.2f}x")
         print(" Resultados idênticos!")
         print("\nMatriz Resultante C = A × B:\n", C_serial)
 
@@ -141,5 +140,4 @@ def main():
         conn1.close()
         conn2.close()
 
-if __name__ == "__main__":
-    main()
+main()
