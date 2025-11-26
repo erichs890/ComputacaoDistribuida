@@ -1,9 +1,8 @@
 import socket
 import numpy as np
 import time
-import matplotlib.pyplot as plt  # ← Importação necessária para o gráfico
-
-from utils import serialize_data, deserialize_data
+import matplotlib.pyplot as plt
+from utils import *
 
 def input_matrix(name):
     print(f"Configurando a matriz {name}:")
