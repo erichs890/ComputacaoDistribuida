@@ -12,7 +12,7 @@ def input_matrix(name):
     matrix = np.random.randint(-100, 100, size=(rows, cols)).astype(float)
     return matrix
 
-def recv_all(conn, size):
+def recv_all(conn, size): 
     data = b""
     while len(data) < size:
         packet = conn.recv(size - len(data))
