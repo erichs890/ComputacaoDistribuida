@@ -18,7 +18,7 @@ def main():
     # Receber tamanho dos dados
     size_bytes = conn.recv(4)
     if not size_bytes:
-        print("❌ Erro: não recebeu tamanho dos dados.")
+        print("Erro: não recebeu tamanho dos dados.")
         conn.close()
         server.close()
         return
@@ -53,5 +53,5 @@ def main():
     conn.close()
     server.close()
 
-if __name__ == "__main__":
-    main()
+
+main()
