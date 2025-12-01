@@ -7,6 +7,7 @@ PORT = 65431  # servidor1
 def main():
     print(f"Servidor 1 iniciado. Aguardando conexão em {HOST}:{PORT}...")
 
+
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind((HOST, PORT))
