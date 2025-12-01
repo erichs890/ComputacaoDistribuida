@@ -4,6 +4,15 @@ from utils import serialize_data, deserialize_data, multiply_block
 HOST = '0.0.0.0'
 PORT = 65431  # servidor1
 
+def receve_all(conn, size): 
+    data = b""
+    while len(data) < size:
+        packet = conn.recv(size - len(data))
+        if not packet:
+            raise ConnectionError("Conexão encerrada.")
+        data += packet
+    return data
+
 def main():
     print(f"Servidor 1 iniciado. Aguardando conexão em {HOST}:{PORT}...")
 
@@ -14,6 +23,7 @@ def main():
     server.listen(1)
 
     conn, addr = server.accept()
+
     print(f"Cliente conectado: {addr}")
 
     # Receber tamanho dos dados
@@ -28,7 +38,7 @@ def main():
     print(f"Recebendo {size} bytes de dados...")
 
     # Receber dados completos
-    data = conn.recv(size)
+    data = receve_all(conn, size)
     A_block, B = deserialize_data(data)
 
     print("\nDADOS RECEBIDOS:")
